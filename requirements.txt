@@ -1,0 +1,12 @@
+# Core ML stack — pinned to versions with mac arm64 / MPS wheels
+torch>=2.4
+transformers>=4.44
+datasets>=2.20
+evaluate>=0.4.2
+jiwer>=3.0          # WER computation
+scikit-learn>=1.4   # F1 helpers
+accelerate>=0.33
+torchcodec>=0.15    # audio decoding backend required by datasets 5.x
+soundfile>=0.12     # audio decode
+librosa>=0.10       # resampling fallback
+PyYAML>=6.0

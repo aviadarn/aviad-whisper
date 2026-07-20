@@ -1,0 +1,37 @@
+# Whisper fine-tune pipeline config. Change dataset -> your own voice later; pipeline code stays the same.
+
+model:
+  name: openai/whisper-small        # multilingual small (~244M). Options: whisper-base (faster), whisper-medium (better)
+  language: english
+  task: transcribe
+
+dataset:
+  name: PolyAI/minds14              # tiny public ASR set — proves the pipeline end-to-end
+  config: en-US
+  audio_column: audio
+  text_column: transcription
+  sampling_rate: 16000
+
+split:
+  test_size: 0.15                   # fraction held out for final F1 report
+  val_size: 0.15                    # fraction for in-training eval
+  seed: 42
+
+train:
+  output_dir: models/whisper-finetuned
+  per_device_train_batch_size: 8
+  per_device_eval_batch_size: 8
+  gradient_accumulation_steps: 1
+  learning_rate: 1.0e-5
+  warmup_steps: 20
+  max_steps: 200                    # small for ASAP first run. Raise for real training.
+  eval_steps: 50
+  save_steps: 50
+  logging_steps: 10
+  generation_max_length: 128
+  fp16: false                       # MPS uses fp32
+  seed: 42
+
+eval:
+  # word-level F1 is reported alongside WER (WER is the standard ASR metric)
+  normalize: true                   # lowercase + strip punctuation before scoring
