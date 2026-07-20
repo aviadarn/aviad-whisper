@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whisper Voice Collector</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, system-ui, sans-serif;
+    background: #14161a; color: #e8eaed; display: flex; flex-direction: column;
+    min-height: 100vh; align-items: center;
+  }
+  header { width: 100%; max-width: 780px; padding: 20px 24px 0; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+  .sub { color: #9aa0a6; font-size: 13px; }
+  .bar { height: 6px; background: #23262b; border-radius: 3px; margin: 14px 0 0; overflow: hidden; }
+  .bar > span { display: block; height: 100%; background: #4c8bf5; width: 0; transition: width .2s; }
+  main { width: 100%; max-width: 780px; padding: 24px; flex: 1; display: flex; flex-direction: column; }
+  .meta { display: flex; justify-content: space-between; color: #9aa0a6; font-size: 13px; margin-bottom: 10px; }
+  .done-tag { color: #34a853; font-weight: 600; }
+  .prompt {
+    background: #1d2025; border: 1px solid #2b2f36; border-radius: 12px;
+    padding: 32px; font-size: 26px; line-height: 1.5; min-height: 160px;
+    display: flex; align-items: center;
+  }
+  .controls { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; align-items: center; }
+  button {
+    font: inherit; font-weight: 600; border: none; border-radius: 9px;
+    padding: 12px 20px; cursor: pointer; color: #fff; background: #3a3f47;
+  }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  #rec { background: #ea4335; } #rec.recording { background: #b3261e; animation: pulse 1s infinite; }
+  #save { background: #34a853; }
+  .nav { background: #2b2f36; }
+  @keyframes pulse { 50% { opacity: .55; } }
+  audio { margin-top: 18px; width: 100%; }
+  .hint { color: #9aa0a6; font-size: 12px; margin-top: 18px; }
+  kbd { background: #2b2f36; border-radius: 4px; padding: 1px 6px; font-size: 11px; }
+  .status { margin-top: 8px; font-size: 13px; min-height: 18px; }
+  .err { color: #ea4335; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Whisper Voice Collector</h1>
+  <div class="sub">Read each sentence aloud, record, save. Clips → <code>data/voice/</code>.</div>
+  <div class="bar"><span id="prog"></span></div>
+</header>
+<main>
+  <div class="meta">
+    <div>Prompt <span id="idx">–</span> / <span id="total">–</span> <span id="donetag"></span></div>
+    <div><span id="count">0</span> clips saved</div>
+  </div>
+  <div class="prompt" id="prompt">Loading…</div>
+  <div class="controls">
+    <button id="rec">● Record</button>
+    <button id="save" disabled>Save &amp; Next</button>
+    <button class="nav" id="prev">← Prev</button>
+    <button class="nav" id="next">Skip →</button>
+  </div>
+  <audio id="player" controls hidden></audio>
+  <div class="status" id="status"></div>
+  <div class="hint"><kbd>Space</kbd> record / stop · <kbd>Enter</kbd> save &amp; next · <kbd>←</kbd> <kbd>→</kbd> navigate</div>
+</main>
+<script>
+let prompts = [], cur = 0, done = new Set();
+let mediaRecorder, chunks = [], blob = null, stream = null;
+
+const $ = id => document.getElementById(id);
+const setStatus = (m, err=false) => { const s = $("status"); s.textContent = m; s.className = "status" + (err ? " err" : ""); };
+
+async function boot() {
+  prompts = await (await fetch("/prompts.json")).json();
+  const st = await (await fetch("/status")).json();
+  done = new Set(st.done);
+  $("total").textContent = prompts.length;
+  $("count").textContent = st.count;
+  // start at first un-recorded prompt
+  cur = prompts.findIndex((_, i) => !done.has(i));
+  if (cur < 0) cur = 0;
+  render();
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    setStatus("Microphone blocked — allow mic access and reload.", true);
+    $("rec").disabled = true;
+  }
+}
+
+function render() {
+  $("prompt").textContent = prompts[cur];
+  $("idx").textContent = cur + 1;
+  $("donetag").innerHTML = done.has(cur) ? '<span class="done-tag">✓ recorded</span>' : "";
+  $("prog").style.width = (done.size / prompts.length * 100) + "%";
+  resetClip();
+}
+
+function resetClip() {
+  blob = null; chunks = [];
+  $("save").disabled = true;
+  const p = $("player"); p.hidden = true; p.removeAttribute("src");
+  $("rec").classList.remove("recording");
+  $("rec").textContent = "● Record";
+  setStatus("");
+}
+
+function toggleRec() {
+  if (!stream) return;
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+    return;
+  }
+  chunks = [];
+  mediaRecorder = new MediaRecorder(stream);
+  mediaRecorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  mediaRecorder.onstop = () => {
+    blob = new Blob(chunks, { type: chunks[0]?.type || "audio/webm" });
+    const url = URL.createObjectURL(blob);
+    const p = $("player"); p.src = url; p.hidden = false;
+    $("save").disabled = false;
+    $("rec").classList.remove("recording");
+    $("rec").textContent = "● Re-record";
+    setStatus("Recorded. Review, then Save & Next.");
+  };
+  mediaRecorder.start();
+  $("rec").classList.add("recording");
+  $("rec").textContent = "■ Stop";
+  setStatus("Recording… read the sentence, then Stop.");
+}
+
+async function save() {
+  if (!blob) return;
+  $("save").disabled = true;
+  setStatus("Saving…");
+  const url = `/save?id=${cur}&text=${encodeURIComponent(prompts[cur])}`;
+  try {
+    const r = await fetch(url, { method: "POST", body: blob });
+    if (!r.ok) throw new Error(await r.text());
+    const j = await r.json();
+    done.add(cur);
+    $("count").textContent = j.count;
+    setStatus("Saved ✓");
+    goNextUnrecorded();
+  } catch (e) {
+    setStatus("Save failed: " + e.message, true);
+    $("save").disabled = false;
+  }
+}
+
+function goNextUnrecorded() {
+  const next = prompts.findIndex((_, i) => i > cur && !done.has(i));
+  cur = next >= 0 ? next : Math.min(cur + 1, prompts.length - 1);
+  render();
+}
+
+$("rec").onclick = toggleRec;
+$("save").onclick = save;
+$("prev").onclick = () => { if (cur > 0) { cur--; render(); } };
+$("next").onclick = () => { if (cur < prompts.length - 1) { cur++; render(); } };
+
+document.addEventListener("keydown", e => {
+  if (e.code === "Space") { e.preventDefault(); toggleRec(); }
+  else if (e.key === "Enter") { e.preventDefault(); if (!$("save").disabled) save(); }
+  else if (e.key === "ArrowLeft") $("prev").click();
+  else if (e.key === "ArrowRight") $("next").click();
+});
+
+boot();
+</script>
+</body>
+</html>

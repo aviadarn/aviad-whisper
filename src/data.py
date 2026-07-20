@@ -7,15 +7,20 @@ from __future__ import annotations
 
 from datasets import Audio, DatasetDict, load_dataset
 
-from src.config import Config, load_config
+from src.config import Config, load_config, resolve_path
 
 
 def load_splits(cfg: Config) -> DatasetDict:
     ds_cfg = cfg["dataset"]
     sp_cfg = cfg["split"]
 
-    # MINDS-14 ships a single 'train' split; we carve val/test out of it.
-    full = load_dataset(ds_cfg["name"], ds_cfg["config"], split="train")
+    source = ds_cfg.get("source", "hub")
+    if source == "local":
+        # Own-voice clips collected by record/app.py (metadata.csv + wavs).
+        full = load_dataset("audiofolder", data_dir=resolve_path(ds_cfg["local_dir"]), split="train")
+    else:
+        # Public hub dataset ships a single 'train' split; we carve val/test out of it.
+        full = load_dataset(ds_cfg["name"], ds_cfg["config"], split="train")
 
     # Keep only the columns we need, standardize names -> audio / text.
     keep = {ds_cfg["audio_column"], ds_cfg["text_column"]}

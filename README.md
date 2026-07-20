@@ -38,10 +38,33 @@ python -m src.pipeline --skip-train   # eval an existing checkpoint
 | `evaluate_model.py`| generate on test split, score                       |
 | `pipeline.py`      | chain 1→6                                            |
 
+## Collect your own voice (`record/`)
+
+Record yourself reading generated prompts to build a personal dataset.
+
+```bash
+python record/app.py            # open http://localhost:8000
+```
+
+Browser shows one sentence at a time. Read it, hit **Record** (or `Space`),
+**Stop**, then **Save & Next** (`Enter`). Each clip is transcoded to 16 kHz mono
+WAV and paired with its exact text in `data/voice/metadata.csv`
+(`audiofolder` format). Progress is saved; re-open any time to resume.
+
+Then train on your voice — flip one line in `config.yaml`:
+
+```yaml
+dataset:
+  source: local     # was: hub
+```
+
+and run `python -m src.pipeline`. Everything else is unchanged. Aim for
+100+ clips before expecting useful accuracy.
+
 ## Config
 
-Everything is in `config.yaml`. To train on **your own voice** later, point
-`dataset` at your data (audio column + transcript column) — the rest is unchanged.
+Everything is in `config.yaml`. `dataset.source: hub` uses the public set;
+`local` uses your own recordings in `data/voice`.
 
 ## Notes
 

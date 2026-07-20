@@ -6,8 +6,10 @@ model:
   task: transcribe
 
 dataset:
-  name: PolyAI/minds14              # tiny public ASR set — proves the pipeline end-to-end
+  source: hub                       # hub = public dataset below | local = your own recordings in local_dir
+  name: PolyAI/minds14              # tiny public ASR set — proves the pipeline end-to-end (source: hub)
   config: en-US
+  local_dir: data/voice            # own-voice clips from record/app.py (source: local)
   audio_column: audio
   text_column: transcription
   sampling_rate: 16000
