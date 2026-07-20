@@ -57,12 +57,13 @@
   <div class="controls">
     <button id="rec">● Record</button>
     <button id="save" disabled>Save &amp; Next</button>
+    <button class="nav" id="copy">⧉ Copy text</button>
     <button class="nav" id="prev">← Prev</button>
     <button class="nav" id="next">Skip →</button>
   </div>
   <audio id="player" controls hidden></audio>
   <div class="status" id="status"></div>
-  <div class="hint"><kbd>Space</kbd> record / stop · <kbd>Enter</kbd> save &amp; next · <kbd>←</kbd> <kbd>→</kbd> navigate</div>
+  <div class="hint"><kbd>Space</kbd> record / stop · <kbd>Enter</kbd> save &amp; next · <kbd>C</kbd> copy text · <kbd>←</kbd> <kbd>→</kbd> navigate</div>
 </main>
 <script>
 let prompts = [], cur = 0, done = new Set();
@@ -155,8 +156,21 @@ function goNextUnrecorded() {
   render();
 }
 
+async function copyText() {
+  const t = prompts[cur];
+  try {
+    await navigator.clipboard.writeText(t);
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = t; document.body.appendChild(ta); ta.select();
+    document.execCommand("copy"); ta.remove();
+  }
+  setStatus("Copied to clipboard ✓");
+}
+
 $("rec").onclick = toggleRec;
 $("save").onclick = save;
+$("copy").onclick = copyText;
 $("prev").onclick = () => { if (cur > 0) { cur--; render(); } };
 $("next").onclick = () => { if (cur < prompts.length - 1) { cur++; render(); } };
 
@@ -165,6 +179,7 @@ document.addEventListener("keydown", e => {
   else if (e.key === "Enter") { e.preventDefault(); if (!$("save").disabled) save(); }
   else if (e.key === "ArrowLeft") $("prev").click();
   else if (e.key === "ArrowRight") $("next").click();
+  else if (e.key.toLowerCase() === "c") copyText();
 });
 
 boot();
